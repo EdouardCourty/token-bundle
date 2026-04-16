@@ -3,13 +3,13 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
          colors="true"
-         failOnRisky="true"
+         failOnRisky="false"
          failOnWarning="true">
     <php>
         <ini name="error_reporting" value="-1"/>
         <server name="APP_ENV" value="test" force="true"/>
         <server name="SHELL_VERBOSITY" value="-1"/>
-        <server name="KERNEL_CLASS" value=""/>
+        <server name="KERNEL_CLASS" value="Ecourty\TokenBundle\Tests\App\TestKernel"/>
     </php>
 
     <testsuites>

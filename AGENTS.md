@@ -2,15 +2,15 @@
 
 ## 🎯 Core Concept
 
-[TO BE FILLED]
+**Token Bundle** (`ecourty/token-bundle`) is a Symfony bundle for managing secure, typed, and revocable tokens attached to any entity.
 
 ### Problem Solved
 
-[TO BE FILLED]
+In most Symfony projects, developers repeatedly implement ad-hoc token systems for password resets, email verification, share links, and resource access. There is no generic, reusable solution that handles expiration, revocation, payload, and multi-use logic cleanly.
 
 ### Solution
 
-[TO BE FILLED]
+A Doctrine-backed token system where any entity can become a **subject** of a token by implementing `TokenSubjectInterface`. Tokens are typed, carry an arbitrary JSON payload, support single-use or max-use limits, and can be revoked individually or in bulk.
 
 ---
 
@@ -18,29 +18,117 @@
 
 ### Overview
 
-[TO BE FILLED]
+The bundle stores tokens in a single Doctrine-managed table. A `TokenManager` service handles all creation, consumption, and revocation logic, dispatching Symfony events on each action.
 
 ### Main Components
 
-[TO BE FILLED]
+- **`Token` entity** — Doctrine entity stored in `tokens` table with the following fields:
+  - `id` (integer, auto-increment), `type` (string), `token` (unique string)
+  - `subject_type` (FQCN), `subject_id` (string)
+  - `payload` (json, nullable), `single_use` (bool)
+  - `max_uses` (nullable int), `use_count` (int, default 0)
+  - `expires_at` (datetime, **required** — no permanent tokens), `consumed_at` (nullable datetime)
+  - `revoked_at` (nullable datetime), `created_at` (datetime)
+  - Composite index on `(subject_type, subject_id, type)` for efficient lookups
+
+- **`TokenSubjectInterface`** — Implemented by any entity that can be a token subject. Single method: `getTokenSubjectId(): string`. The subject FQCN + ID are stored to identify the entity.
+
+- **`TokenManager`** — Main service. Methods:
+  - `create(string $type, TokenSubjectInterface $subject, string $expiresIn, bool $singleUse, ?int $maxUses, ?array $payload): Token`
+  - `consume(string $tokenString, string $type): Token`
+  - `revoke(string $tokenString): void`
+  - `revokeAll(TokenSubjectInterface $subject, ?string $type): int`
+  - `findValid(TokenSubjectInterface $subject, string $type): ?Token`
+
+- **Events** (dispatched via Symfony EventDispatcher):
+  - `TokenCreatedEvent`
+  - `TokenConsumedEvent`
+  - `TokenRevokedEvent`
+
+- **Console Command** — `php bin/console token:purge` — deletes expired and consumed tokens. Options: `--dry-run`, `--type=<type>`, `--before=<date>` (date cutoff for expired tokens, e.g. `-30 days`).
+
+- **Bundle configuration** (`config/packages/token.yaml`):
+  ```yaml
+  token:
+    token_length: 64  # min: 16
+  ```
 
 ---
 
 ## 🚀 Typical Use Cases
 
-[TO BE FILLED]
+- **Password reset** — single-use token, 1-hour TTL, sent by email
+- **Email verification** — single-use token, 24-hour TTL
+- **Share link** — multi-use token attached to a `Document` entity, no TTL or fixed expiry
+- **Resource access** — token with `max_uses: 10` giving limited access to a private resource
+- **Temporary API access** — token with payload carrying permissions
 
 ---
 
 ## 💡 Design Patterns Used
 
-[TO BE FILLED]
+- **Interface segregation** — `TokenSubjectInterface` decouples any Doctrine entity from the bundle without inheritance
+- **Event-driven** — all side effects (logging, emails, alerts) are handled via Symfony events, not inline
+- **Decorator-friendly** — `TokenManager` can be decorated for custom behavior
 
 ---
 
 ## Project breakdown
 
-[TO BE FILLED]
+```
+src/
+  Entity/
+    Token.php                  # Doctrine entity (table: tokens)
+  Contract/
+    TokenSubjectInterface.php  # Interface for subject entities
+  Repository/
+    TokenRepository.php        # Queries, atomic increment, bulk revoke, purge
+  Service/
+    TokenManager.php           # Core service (create/consume/revoke/findValid)
+  Exception/
+    AbstractTokenException.php # Base exception (extends RuntimeException)
+    TokenNotFoundException.php
+    TokenExpiredException.php
+    TokenAlreadyConsumedException.php
+    TokenRevokedException.php
+    TokenMaxUsesReachedException.php
+  Event/
+    AbstractTokenEvent.php     # Base event (carries Token)
+    TokenCreatedEvent.php
+    TokenConsumedEvent.php
+    TokenRevokedEvent.php
+  Command/
+    PurgeTokensCommand.php     # token:purge (--dry-run, --type)
+  DependencyInjection/
+    Configuration.php          # token_length config node
+    TokenExtension.php         # PrependExtensionInterface for Doctrine mapping
+  Resources/
+    config/
+      services.php
+  TokenBundle.php
+```
+
+```
+tests/
+  App/
+    Entity/TestUser.php        # Fixture entity implementing TokenSubjectInterface
+    TestKernel.php             # Minimal test kernel (Framework + Doctrine + TokenBundle, no hacks)
+    bin/console
+    config/
+      services.php             # DI defaults only (no compiler pass, no public overrides)
+      packages/
+        framework.php
+        doctrine.php           # SQLite in-memory + native lazy objects
+      routes.php
+  Unit/
+    Entity/TokenTest.php
+  Integration/
+    IntegrationTestCase.php    # Base class: boot kernel, wire TokenRepository directly, create schema, teardown
+    Repository/TokenRepositoryTest.php
+    Service/TokenManagerTest.php
+  Functional/
+    Command/PurgeTokensCommandTest.php
+```
 
 **IMPORTANT**: This section should evolve with the project. When a new feature is created, updated or removed, this section should too.
 
@@ -49,6 +137,17 @@
 This bundle should be covered by unit, integration and functional tests.
 The tests are located in the `tests/{Unit|Integration|Functional}` folder.
 Unit tests can use mocks or stubs if needed.
+
+### Testing private bundle services
+
+Symfony's compiler inlines private services with a single consumer (e.g. `TokenManager` is only consumed by `PurgeTokensCommand`). Once inlined, these services are inaccessible via the test container — even with `framework.test: true`. Do NOT add a compiler pass to the test kernel to work around this.
+
+Instead, **instantiate bundle services directly in integration tests**:
+- `EntityManagerInterface` and `ManagerRegistry` are public Doctrine services — get them from the container.
+- `TokenRepository` is constructed with `ManagerRegistry` directly.
+- `TokenManager` is instantiated with its dependencies, using a dedicated `EventDispatcher` instance so tests can track dispatched events.
+
+This mirrors exactly how a real application wires these services via DI.
 
 ---
 
@@ -84,20 +183,3 @@ Unit tests can use mocks or stubs if needed.
 - **README**: User documentation
 - **Symfony Docs**: https://symfony.com/doc/current/bundles.html
 
-# FIRST READING OF THIS FILE
-
-If you read this, it means the user did not yet fill this file.  
-Ask the users the following questions :
-- What problem is this bundle trying to solve?
-- What solution have you considered to do so?
-- What architecture have you thought about?
-- What should be the name of the bundle?
-- What are some typical usecases for this?
-
-When answered, read this file again (@AGENTS.md) and fill the parts that contain "[TO BE FILLED]" content. Keep the file under 500 lines.  
-This file will be read by every future developer working on this project.
-
-Keep it simple, efficient and clear.  
-Great documentation is easy to read.  
-Do NOT overcomplicate things.  
-Do NOT include examples for everything.

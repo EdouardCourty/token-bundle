@@ -2,6 +2,7 @@
 
 $finder = PhpCsFixer\Finder::create()
     ->exclude('vendor')
+    ->exclude('App/var')
     ->in(__DIR__ . '/src')
     ->in(__DIR__ . '/tests');
 

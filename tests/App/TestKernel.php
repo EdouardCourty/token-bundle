@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Ecourty\PlatformParameterBundle\Tests\App;
+namespace Ecourty\TokenBundle\Tests\App;
 
+use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
+use Ecourty\TokenBundle\TokenBundle;
+use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Component\Config\Loader\LoaderInterface;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
@@ -17,6 +20,9 @@ class TestKernel extends Kernel
     public function registerBundles(): iterable
     {
         return [
+            new FrameworkBundle(),
+            new DoctrineBundle(),
+            new TokenBundle(),
         ];
     }
 
@@ -27,22 +33,22 @@ class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return $this->getProjectDir().'/var/cache/'.$this->environment;
+        return $this->getProjectDir() . '/App/var/cache/' . $this->environment;
     }
 
     public function getLogDir(): string
     {
-        return $this->getProjectDir().'/var/log';
+        return $this->getProjectDir() . '/App/var/log';
     }
 
     protected function configureContainer(ContainerBuilder $container, LoaderInterface $loader): void
     {
-        $loader->load($this->getProjectDir().'/tests/App/config/services.yaml');
-        $loader->load($this->getProjectDir().'/tests/App/config/packages/*.yaml', 'glob');
+        $loader->load($this->getProjectDir() . '/App/config/services.php');
+        $loader->load($this->getProjectDir() . '/App/config/packages/*.php', 'glob');
     }
 
     protected function configureRoutes(RoutingConfigurator $routes): void
     {
-        $routes->import($this->getProjectDir().'/tests/App/config/routes.yaml');
+        $routes->import($this->getProjectDir() . '/App/config/routes.php');
     }
 }

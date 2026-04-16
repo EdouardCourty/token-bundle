@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Ecourty\PlatformParameterBundle;
+namespace Ecourty\TokenBundle;
 
 use Symfony\Component\HttpKernel\Bundle\Bundle;
 
-final class TemplateBundle extends Bundle
+final class TokenBundle extends Bundle
 {
     public function getPath(): string
     {
