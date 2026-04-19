@@ -238,13 +238,42 @@ final class TokenManagerTest extends IntegrationTestCase
 
         $this->em->refresh($token);
         $this->assertTrue($token->isValid());
-        $this->assertSame(0, $token->getUseCount());
+        $this->assertSame(3, $token->getUseCount());
     }
 
     public function testInvalidMaxUsesThrows(): void
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->manager->create('test', $this->user, '+1 hour', false, 0);
+    }
+
+    public function testSingleUseWithMaxUsesThrows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Cannot set both singleUse and maxUses');
+        $this->manager->create('test', $this->user, '+1 hour', true, 5);
+    }
+
+    public function testRevokeAlreadyRevokedIsIdempotent(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+        $tokenString = $token->getToken();
+
+        $this->manager->revoke($tokenString);
+        $this->em->refresh($token);
+        $firstRevokedAt = $token->getRevokedAt();
+
+        // Revoking again should not throw and should not change the timestamp
+        $this->manager->revoke($tokenString);
+        $this->em->refresh($token);
+        $this->assertEquals($firstRevokedAt, $token->getRevokedAt());
+
+        // Only one TokenRevokedEvent should be dispatched
+        $revokedEvents = array_filter(
+            $this->dispatchedEvents,
+            static fn (object $e): bool => $e instanceof TokenRevokedEvent,
+        );
+        $this->assertCount(1, $revokedEvents);
     }
 
     public function testResolveSubject(): void
@@ -353,5 +382,41 @@ final class TokenManagerTest extends IntegrationTestCase
     {
         $this->expectException(\InvalidArgumentException::class);
         $this->manager->consume('some-token-string');
+    }
+
+    public function testConsumeMaxUsesTokenRevokedConcurrentlyThrowsRevokedException(): void
+    {
+        $token = $this->manager->create('share', $this->user, '+7 days', false, 5);
+        $tokenString = $token->getToken();
+
+        // Simulate a concurrent revocation via direct DQL (bypassing the manager)
+        $this->repository->revokeAllBySubject($this->user, 'share');
+
+        $this->expectException(TokenRevokedException::class);
+        $this->manager->consume($tokenString, 'share');
+    }
+
+    public function testConsumeSingleUseTokenRevokedConcurrentlyThrowsRevokedException(): void
+    {
+        $token = $this->manager->create('email_verify', $this->user, '+1 hour', true);
+        $tokenString = $token->getToken();
+
+        // Simulate a concurrent revocation via direct DQL (bypassing the manager)
+        $this->repository->revokeAllBySubject($this->user, 'email_verify');
+
+        $this->expectException(TokenRevokedException::class);
+        $this->manager->consume($tokenString, 'email_verify');
+    }
+
+    public function testConsumeRefreshesEntityAfterAtomicOperation(): void
+    {
+        $token = $this->manager->create('share', $this->user, '+7 days', false, 3);
+        $tokenString = $token->getToken();
+
+        $consumed = $this->manager->consume($tokenString, 'share');
+
+        // The returned token should reflect the DB state without needing a manual refresh
+        $this->assertSame(1, $consumed->getUseCount());
+        $this->assertFalse($consumed->isConsumed());
     }
 }
