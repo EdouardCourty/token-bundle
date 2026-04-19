@@ -13,9 +13,11 @@ A Symfony bundle for managing secure, typed, and revocable tokens attached to an
 - [Usage](#usage)
   - [Making an Entity a Token Subject](#making-an-entity-a-token-subject)
   - [Creating a Token](#creating-a-token)
+  - [Retrieving a Token](#retrieving-a-token)
   - [Consuming a Token](#consuming-a-token)
   - [Revoking Tokens](#revoking-tokens)
   - [Finding a Valid Token](#finding-a-valid-token)
+  - [Resolving the Subject Entity](#resolving-the-subject-entity)
 - [Events](#events)
 - [Exceptions](#exceptions)
 - [Console Command](#console-command)
@@ -142,7 +144,34 @@ $token = $this->tokenManager->create(
 );
 ```
 
+### Retrieving a Token
+
+Use `get()` to look up a token by its string value and validate it **without consuming** it. This is useful to check if a token is valid before showing a form or performing an action:
+
+```php
+$token = $this->tokenManager->get($tokenString, 'password_reset');
+
+// Token is valid — show the reset form, resolve the subject, etc.
+$user = $this->tokenManager->resolveSubject($token);
+```
+
+`get()` throws the same exceptions as `consume()` if the token is invalid.
+
 ### Consuming a Token
+
+`consume()` accepts either a token string (with its type) or a `Token` entity directly:
+
+```php
+// By token string
+$token = $this->tokenManager->consume($tokenString, 'password_reset');
+
+// Or by Token entity (e.g. after a get() call)
+$token = $this->tokenManager->get($tokenString, 'password_reset');
+// ... display a form, check the subject, etc.
+$this->tokenManager->consume($token);
+```
+
+Both paths validate the token before consuming it and throw the same exceptions:
 
 ```php
 use Ecourty\TokenBundle\Exception\TokenAlreadyConsumedException;
@@ -151,23 +180,18 @@ use Ecourty\TokenBundle\Exception\TokenMaxUsesReachedException;
 use Ecourty\TokenBundle\Exception\TokenNotFoundException;
 use Ecourty\TokenBundle\Exception\TokenRevokedException;
 
-public function resetPassword(string $tokenString, string $newPassword): void
-{
-    try {
-        $token = $this->tokenManager->consume($tokenString, 'password_reset');
-        // Token is valid — proceed with password reset
-        // $token->getSubjectId() gives you the user ID
-    } catch (TokenNotFoundException) {
-        // Token does not exist or wrong type
-    } catch (TokenExpiredException) {
-        // Token has expired
-    } catch (TokenRevokedException) {
-        // Token was manually revoked
-    } catch (TokenAlreadyConsumedException) {
-        // Single-use token already used
-    } catch (TokenMaxUsesReachedException) {
-        // Max uses reached
-    }
+try {
+    $token = $this->tokenManager->consume($tokenString, 'password_reset');
+} catch (TokenNotFoundException) {
+    // Token does not exist or wrong type
+} catch (TokenExpiredException) {
+    // Token has expired
+} catch (TokenRevokedException) {
+    // Token was manually revoked
+} catch (TokenAlreadyConsumedException) {
+    // Single-use token already used
+} catch (TokenMaxUsesReachedException) {
+    // Max uses reached
 }
 ```
 
@@ -195,6 +219,19 @@ $token = $this->tokenManager->findValid($user, 'password_reset');
 
 if ($token === null) {
     // No valid token exists — create a new one
+}
+```
+
+### Resolving the Subject Entity
+
+After consuming or finding a token, retrieve the original subject entity directly:
+
+```php
+$token = $this->tokenManager->consume($tokenString, 'password_reset');
+$user = $this->tokenManager->resolveSubject($token);
+
+if ($user === null) {
+    // Subject entity was deleted
 }
 ```
 

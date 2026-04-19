@@ -246,4 +246,112 @@ final class TokenManagerTest extends IntegrationTestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->manager->create('test', $this->user, '+1 hour', false, 0);
     }
+
+    public function testResolveSubject(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+
+        $this->em->clear();
+
+        $subject = $this->manager->resolveSubject($token);
+
+        $this->assertInstanceOf(TestUser::class, $subject);
+        $this->assertSame($this->user->getTokenSubjectId(), $subject->getTokenSubjectId());
+    }
+
+    public function testResolveSubjectReturnsNullWhenEntityDeleted(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+
+        $this->em->remove($this->user);
+        $this->em->flush();
+        $this->em->clear();
+
+        $subject = $this->manager->resolveSubject($token);
+
+        $this->assertNull($subject);
+    }
+
+    public function testGetReturnsValidToken(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+
+        $found = $this->manager->get($token->getToken(), 'password_reset');
+
+        $this->assertSame($token->getId(), $found->getId());
+        $this->assertTrue($found->isValid());
+        $this->assertFalse($found->isConsumed());
+    }
+
+    public function testGetThrowsOnNotFound(): void
+    {
+        $this->expectException(TokenNotFoundException::class);
+        $this->manager->get('nonexistent', 'password_reset');
+    }
+
+    public function testGetThrowsOnExpired(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '-1 second', true);
+
+        $this->expectException(TokenExpiredException::class);
+        $this->manager->get($token->getToken(), 'password_reset');
+    }
+
+    public function testGetThrowsOnRevoked(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+        $this->manager->revoke($token->getToken());
+
+        $this->expectException(TokenRevokedException::class);
+        $this->manager->get($token->getToken(), 'password_reset');
+    }
+
+    public function testGetThrowsOnConsumed(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+        $this->manager->consume($token->getToken(), 'password_reset');
+
+        $this->expectException(TokenAlreadyConsumedException::class);
+        $this->manager->get($token->getToken(), 'password_reset');
+    }
+
+    public function testGetDoesNotConsumeToken(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '+1 hour', true);
+
+        $this->manager->get($token->getToken(), 'password_reset');
+        $this->manager->get($token->getToken(), 'password_reset');
+
+        $this->em->refresh($token);
+        $this->assertFalse($token->isConsumed());
+        $this->assertTrue($token->isValid());
+    }
+
+    public function testConsumeTokenEntity(): void
+    {
+        $token = $this->manager->create('email_verify', $this->user, '+1 hour', true);
+
+        $retrieved = $this->manager->get($token->getToken(), 'email_verify');
+        $consumed = $this->manager->consume($retrieved);
+
+        $this->assertTrue($consumed->isConsumed());
+        $this->assertSame($token->getId(), $consumed->getId());
+
+        $eventTypes = array_map(static fn (object $e): string => $e::class, $this->dispatchedEvents);
+        $this->assertContains(TokenConsumedEvent::class, $eventTypes);
+    }
+
+    public function testConsumeTokenEntityValidates(): void
+    {
+        $token = $this->manager->create('password_reset', $this->user, '-1 second', true);
+
+        $this->expectException(TokenExpiredException::class);
+        $this->manager->consume($token);
+    }
+
+    public function testConsumeStringWithoutTypeThrows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->manager->consume('some-token-string');
+    }
 }

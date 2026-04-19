@@ -35,10 +35,12 @@ The bundle stores tokens in a single Doctrine-managed table. A `TokenManager` se
 
 - **`TokenManager`** — Main service. Methods:
   - `create(string $type, TokenSubjectInterface $subject, string $expiresIn, bool $singleUse, ?int $maxUses, ?array $payload): Token`
-  - `consume(string $tokenString, string $type): Token`
+  - `get(string $tokenString, string $type): Token`
+  - `consume(string|Token $tokenOrString, ?string $type = null): Token`
   - `revoke(string $tokenString): void`
   - `revokeAll(TokenSubjectInterface $subject, ?string $type): int`
   - `findValid(TokenSubjectInterface $subject, string $type): ?Token`
+  - `resolveSubject(Token $token): ?TokenSubjectInterface`
 
 - **Events** (dispatched via Symfony EventDispatcher):
   - `TokenCreatedEvent`

@@ -67,13 +67,37 @@ final class TokenManager
         return $token;
     }
 
-    public function consume(string $tokenString, string $type): Token
+    /**
+     * Retrieves a token by its string value and type, and validates that it is still usable.
+     *
+     * @throws TokenNotFoundException        if the token does not exist or the type does not match
+     * @throws TokenRevokedException         if the token has been revoked
+     * @throws TokenExpiredException         if the token has expired
+     * @throws TokenAlreadyConsumedException if the token has already been consumed
+     * @throws TokenMaxUsesReachedException  if the token has reached its maximum number of uses
+     */
+    public function get(string $tokenString, string $type): Token
     {
         $token = $this->tokenRepository->findByTokenStringAndType($tokenString, $type);
 
         if ($token === null) {
             throw new TokenNotFoundException(\sprintf('Token "%s" of type "%s" not found.', $tokenString, $type));
         }
+
+        $this->validateToken($token);
+
+        return $token;
+    }
+
+    /**
+     * @throws TokenRevokedException
+     * @throws TokenExpiredException
+     * @throws TokenAlreadyConsumedException
+     * @throws TokenMaxUsesReachedException
+     */
+    private function validateToken(Token $token): void
+    {
+        $tokenString = $token->getToken();
 
         if ($token->isRevoked()) {
             throw new TokenRevokedException(\sprintf('Token "%s" has been revoked.', $tokenString));
@@ -90,6 +114,21 @@ final class TokenManager
         if ($token->isMaxUsesReached()) {
             throw new TokenMaxUsesReachedException(\sprintf('Token "%s" has reached its maximum number of uses.', $tokenString));
         }
+    }
+
+    public function consume(string|Token $tokenOrString, ?string $type = null): Token
+    {
+        if ($tokenOrString instanceof Token) {
+            $token = $tokenOrString;
+            $this->validateToken($token);
+        } else {
+            if ($type === null) {
+                throw new \InvalidArgumentException('The $type argument is required when $tokenOrString is a string.');
+            }
+            $token = $this->get($tokenOrString, $type);
+        }
+
+        $tokenString = $token->getToken();
 
         if ($token->isSingleUse()) {
             $token->markConsumed();
@@ -136,5 +175,24 @@ final class TokenManager
     public function findValid(TokenSubjectInterface $subject, string $type): ?Token
     {
         return $this->tokenRepository->findValidBySubjectAndType($subject, $type);
+    }
+
+    /**
+     * Resolves the subject entity from a token using Doctrine.
+     *
+     * @return TokenSubjectInterface|null the subject entity, or null if not found
+     */
+    public function resolveSubject(Token $token): ?TokenSubjectInterface
+    {
+        /** @var class-string $subjectType */
+        $subjectType = $token->getSubjectType();
+
+        $entity = $this->em->find($subjectType, $token->getSubjectId());
+
+        if ($entity instanceof TokenSubjectInterface) {
+            return $entity;
+        }
+
+        return null;
     }
 }
