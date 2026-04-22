@@ -29,7 +29,7 @@ final class PurgeTokensCommand extends Command
         $this
             ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Preview how many tokens would be purged without actually deleting them.')
             ->addOption('type', null, InputOption::VALUE_REQUIRED, 'Only purge tokens of a specific type.')
-            ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Only purge tokens whose expiry date is before this date (e.g. "2026-01-01", "-30 days"). Defaults to now.');
+            ->addOption('before', null, InputOption::VALUE_REQUIRED, 'Only purge tokens whose expiry date is before this date (e.g. "2026-01-01", "-30 days"). Consumed and revoked tokens are always purged regardless. Defaults to now.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -52,13 +52,13 @@ final class PurgeTokensCommand extends Command
         }
 
         if ($isDryRun) {
-            $count = $this->tokenRepository->countExpiredAndConsumed($type, $before);
+            $count = $this->tokenRepository->countStaleTokens($type, $before);
             $io->info(\sprintf('[DRY RUN] %d token(s) would be purged.', $count));
 
             return Command::SUCCESS;
         }
 
-        $count = $this->tokenRepository->purgeExpiredAndConsumed($type, $before);
+        $count = $this->tokenRepository->purgeStaleTokens($type, $before);
         $io->success(\sprintf('%d token(s) purged.', $count));
 
         return Command::SUCCESS;

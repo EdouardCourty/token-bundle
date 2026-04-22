@@ -18,6 +18,7 @@ A Symfony bundle for managing secure, typed, and revocable tokens attached to an
   - [Revoking Tokens](#revoking-tokens)
   - [Finding a Valid Token](#finding-a-valid-token)
   - [Resolving the Subject Entity](#resolving-the-subject-entity)
+  - [Protecting Controller Routes](#protecting-controller-routes)
 - [Events](#events)
 - [Exceptions](#exceptions)
 - [Console Command](#console-command)
@@ -235,17 +236,124 @@ if ($user === null) {
 }
 ```
 
+### Protecting Controller Routes
+
+Use the `#[RequiresToken]` attribute to protect a controller action with a token check. The listener validates the token **before** the controller executes:
+
+```php
+use Ecourty\TokenBundle\Attribute\RequiresToken;
+use Ecourty\TokenBundle\Entity\Token;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\JsonResponse;
+
+class DocumentController
+{
+    #[RequiresToken(type: 'share')]
+    public function view(Request $request): JsonResponse
+    {
+        // The validated Token entity is available in the request
+        $token = $request->attributes->get('_token');
+        assert($token instanceof Token);
+
+        return new JsonResponse(['document' => '...']);
+    }
+}
+```
+
+By default, the token is read from the `X-Token` HTTP header via the built-in `HeaderTokenResolver`.
+
+The attribute accepts two parameters:
+
+| Parameter  | Type           | Default                      | Description                                |
+|------------|----------------|------------------------------|--------------------------------------------|
+| `type`     | `string`       | *(required)*                 | Token type to validate against             |
+| `resolver` | `class-string` | `HeaderTokenResolver::class` | FQCN of a `TokenResolverInterface` to use  |
+
+**Built-in resolvers:**
+
+| Resolver                    | Reads from                       |
+|-----------------------------|----------------------------------|
+| `HeaderTokenResolver`       | `X-Token` HTTP header (default)  |
+| `QueryStringTokenResolver`  | `?token=` query string parameter |
+
+```php
+use Ecourty\TokenBundle\Resolver\QueryStringTokenResolver;
+
+#[RequiresToken(type: 'share', resolver: QueryStringTokenResolver::class)]
+public function sharedDocument(Request $request): JsonResponse
+{
+    // Token is read from ?token=...
+}
+```
+
+**Custom resolver:**
+
+Implement `TokenResolverInterface` to extract the token from anywhere in the request (cookies, custom headers, etc.):
+
+```php
+use Ecourty\TokenBundle\Contract\TokenResolverInterface;
+use Symfony\Component\HttpFoundation\Request;
+
+class BearerTokenResolver implements TokenResolverInterface
+{
+    public function resolve(Request $request): ?string
+    {
+        $header = $request->headers->get('Authorization');
+        if ($header !== null && str_starts_with($header, 'Bearer ')) {
+            return substr($header, 7);
+        }
+
+        return null;
+    }
+}
+```
+
+```php
+#[RequiresToken(type: 'api_access', resolver: BearerTokenResolver::class)]
+public function apiEndpoint(Request $request): JsonResponse
+{
+    // Token is extracted from the Authorization header
+}
+```
+
+> Resolver classes are automatically tagged and discovered when they implement `TokenResolverInterface`.
+
+**Handling access denied:**
+
+When a token is missing, invalid, expired, or revoked, a `TokenAccessDeniedException` is thrown. You can handle it globally by listening to the `TokenAccessDeniedEvent`:
+
+```php
+use Ecourty\TokenBundle\Event\TokenAccessDeniedEvent;
+use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\HttpFoundation\JsonResponse;
+
+#[AsEventListener]
+class TokenAccessDeniedHandler
+{
+    public function __invoke(TokenAccessDeniedEvent $event): void
+    {
+        $event->setResponse(new JsonResponse(
+            ['error' => 'Invalid or missing token'],
+            403,
+        ));
+    }
+}
+```
+
+The event provides `$event->request`, `$event->exception` (the underlying token exception), and `$event->tokenType`. Setting a response on the event prevents the exception from propagating.
+
 ---
 
 ## Events
 
 The bundle dispatches Symfony events on token lifecycle actions:
 
-| Event                | Dispatched when                      | Extra properties     |
-|----------------------|--------------------------------------|----------------------|
-| `TokenCreatedEvent`  | After a token is created & persisted | `$createdAt`         |
-| `TokenConsumedEvent` | After a token is successfully consumed | `$consumedAt`      |
-| `TokenRevokedEvent`  | After a single token is revoked via `revoke()` | `$revokedAt` |
+| Event                    | Dispatched when                                         | Extra properties     |
+|--------------------------|-------------------------------------------------------|----------------------|
+| `TokenCreatedEvent`      | After a token is created & persisted                    | `$createdAt`         |
+| `TokenConsumedEvent`     | After a token is successfully consumed                  | `$consumedAt`        |
+| `TokenRevokedEvent`      | After a single token is revoked via `revoke()`          | `$revokedAt`         |
+| `TokenAccessDeniedEvent` | When a `#[RequiresToken]` check fails (dispatched from the exception listener) | `$request`, `$exception`, `$tokenType` |
 
 > **Note:** `revokeAll()` performs a bulk SQL `UPDATE` for performance and does **not** dispatch individual `TokenRevokedEvent` per token.
 
@@ -273,13 +381,14 @@ class TokenCreatedListener
 
 All exceptions extend `AbstractTokenException` (`RuntimeException`):
 
-| Exception                       | Thrown when                                  |
-|---------------------------------|----------------------------------------------|
-| `TokenNotFoundException`        | Token string not found or type mismatch      |
-| `TokenExpiredException`         | Token has expired                            |
-| `TokenRevokedException`        | Token was revoked                            |
-| `TokenAlreadyConsumedException` | Single-use token already consumed            |
-| `TokenMaxUsesReachedException`  | Token has reached its maximum number of uses |
+| Exception                       | Thrown when                                          |
+|---------------------------------|------------------------------------------------------|
+| `TokenNotFoundException`        | Token string not found or type mismatch              |
+| `TokenExpiredException`         | Token has expired                                    |
+| `TokenRevokedException`         | Token was revoked                                    |
+| `TokenAlreadyConsumedException` | Single-use token already consumed                    |
+| `TokenMaxUsesReachedException`  | Token has reached its maximum number of uses         |
+| `TokenAccessDeniedException`    | Token check failed on a `#[RequiresToken]` route     |
 
 ---
 

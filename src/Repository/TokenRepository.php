@@ -76,36 +76,71 @@ class TokenRepository extends ServiceEntityRepository
         return \is_int($result) ? $result : 0;
     }
 
-    public function atomicIncrementUseCount(Token $token, ?\DateTimeImmutable $consumedAt = null): bool
+    /**
+     * Atomically marks a single-use token as consumed, guarding against concurrent consumption.
+     */
+    public function atomicConsumeSingleUse(Token $token): bool
     {
+        $now = new \DateTimeImmutable();
+
+        $result = $this->createQueryBuilder('t')
+            ->update()
+            ->set('t.consumedAt', ':now')
+            ->set('t.useCount', '1')
+            ->where('t.id = :id')
+            ->andWhere('t.consumedAt IS NULL')
+            ->andWhere('t.revokedAt IS NULL')
+            ->andWhere('t.expiresAt > :now')
+            ->setParameter('id', $token->getId())
+            ->setParameter('now', $now)
+            ->getQuery()
+            ->execute();
+
+        $success = \is_int($result) && $result > 0;
+
+        if ($success) {
+            $token->markConsumed($now);
+            $token->incrementUseCount();
+        }
+
+        return $success;
+    }
+
+    public function atomicIncrementUseCount(Token $token): bool
+    {
+        $now = new \DateTimeImmutable();
+
         $qb = $this->createQueryBuilder('t')
             ->update()
             ->set('t.useCount', 't.useCount + 1')
             ->where('t.id = :id')
             ->andWhere('t.maxUses IS NULL OR t.useCount < t.maxUses')
-            ->setParameter('id', $token->getId());
+            ->andWhere('t.revokedAt IS NULL')
+            ->andWhere('t.consumedAt IS NULL')
+            ->andWhere('t.expiresAt > :now')
+            ->setParameter('id', $token->getId())
+            ->setParameter('now', $now);
 
-        if ($consumedAt !== null) {
-            $qb->set('t.consumedAt', ':consumedAt')
-               ->setParameter('consumedAt', $consumedAt);
-        }
+        // Atomically set consumedAt when this increment reaches maxUses
+        $qb->set('t.consumedAt', 'CASE WHEN t.maxUses IS NOT NULL AND t.useCount + 1 >= t.maxUses THEN :consumedAt ELSE t.consumedAt END')
+           ->setParameter('consumedAt', $now);
 
         $result = $qb->getQuery()->execute();
 
         $success = \is_int($result) && $result > 0;
 
         if ($success) {
-            // Sync in-memory entity to match what was written to DB (avoids stale identity map).
             $token->incrementUseCount();
-            if ($consumedAt !== null) {
-                $token->markConsumed($consumedAt);
+            // Sync consumedAt if max uses is now reached
+            if ($token->getMaxUses() !== null && $token->getUseCount() >= $token->getMaxUses()) {
+                $token->markConsumed($now);
             }
         }
 
         return $success;
     }
 
-    public function countExpiredAndConsumed(?string $type = null, ?\DateTimeImmutable $before = null): int
+    public function countStaleTokens(?string $type = null, ?\DateTimeImmutable $before = null): int
     {
         $cutoff = $before ?? new \DateTimeImmutable();
 
@@ -121,7 +156,7 @@ class TokenRepository extends ServiceEntityRepository
         return (int) $qb->getQuery()->getSingleScalarResult();
     }
 
-    public function purgeExpiredAndConsumed(?string $type = null, ?\DateTimeImmutable $before = null): int
+    public function purgeStaleTokens(?string $type = null, ?\DateTimeImmutable $before = null): int
     {
         $cutoff = $before ?? new \DateTimeImmutable();
 

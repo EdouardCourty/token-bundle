@@ -4,6 +4,6 @@ declare(strict_types=1);
 
 namespace Ecourty\TokenBundle\Exception;
 
-class TokenRevokedException extends AbstractTokenException
+final class TokenRevokedException extends AbstractTokenException
 {
 }

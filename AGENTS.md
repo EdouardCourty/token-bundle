@@ -46,6 +46,15 @@ The bundle stores tokens in a single Doctrine-managed table. A `TokenManager` se
   - `TokenCreatedEvent`
   - `TokenConsumedEvent`
   - `TokenRevokedEvent`
+  - `TokenAccessDeniedEvent` (when a `#[RequiresToken]` check fails)
+
+- **`#[RequiresToken]` attribute** — PHP attribute for controller methods/classes that validates a token before execution:
+  - Reads token from request parameter (query/route/body) or a custom `TokenResolverInterface`
+  - Stores validated `Token` entity in `$request->attributes->set('_token', $token)`
+  - Throws `TokenAccessDeniedException` on failure
+  - `TokenAccessDeniedListener` dispatches `TokenAccessDeniedEvent`, allowing response override via event listener
+
+- **`TokenResolverInterface`** — contract for custom token extraction from `Request` (e.g. from headers, cookies). Implementations are auto-tagged via `registerForAutoconfiguration`.
 
 - **Console Command** — `php bin/console token:purge` — deletes expired and consumed tokens. Options: `--dry-run`, `--type=<type>`, `--before=<date>` (date cutoff for expired tokens, e.g. `-30 days`).
 
@@ -81,12 +90,15 @@ The bundle stores tokens in a single Doctrine-managed table. A `TokenManager` se
 src/
   Entity/
     Token.php                  # Doctrine entity (table: tokens)
+  Attribute/
+    RequiresToken.php          # PHP attribute for controller-level token validation
   Contract/
     TokenSubjectInterface.php  # Interface for subject entities
+    TokenResolverInterface.php # Interface for custom token resolution from requests
   Repository/
     TokenRepository.php        # Queries, atomic increment, bulk revoke, purge
   Service/
-    TokenManager.php           # Core service (create/consume/revoke/findValid)
+    TokenManager.php           # Core service (create/get/consume/revoke/revokeAll/findValid/resolveSubject)
   Exception/
     AbstractTokenException.php # Base exception (extends RuntimeException)
     TokenNotFoundException.php
@@ -94,16 +106,21 @@ src/
     TokenAlreadyConsumedException.php
     TokenRevokedException.php
     TokenMaxUsesReachedException.php
+    TokenAccessDeniedException.php # Thrown when #[RequiresToken] check fails
   Event/
     AbstractTokenEvent.php     # Base event (carries Token)
     TokenCreatedEvent.php
     TokenConsumedEvent.php
     TokenRevokedEvent.php
+    TokenAccessDeniedEvent.php # Dispatched when a #[RequiresToken] check fails
+  EventListener/
+    RequiresTokenListener.php  # kernel.controller_arguments — validates token, stores in request attributes
+    TokenAccessDeniedListener.php # kernel.exception — dispatches TokenAccessDeniedEvent, allows response override
   Command/
     PurgeTokensCommand.php     # token:purge (--dry-run, --type)
   DependencyInjection/
     Configuration.php          # token_length config node
-    TokenExtension.php         # PrependExtensionInterface for Doctrine mapping
+    TokenExtension.php         # PrependExtensionInterface for Doctrine mapping + autoconfigure TokenResolverInterface
   Resources/
     config/
       services.php
@@ -114,6 +131,8 @@ src/
 tests/
   App/
     Entity/TestUser.php        # Fixture entity implementing TokenSubjectInterface
+    Controller/TokenTestController.php # Test controller with #[RequiresToken] routes
+    Resolver/HeaderTokenResolver.php   # Test TokenResolverInterface implementation
     TestKernel.php             # Minimal test kernel (Framework + Doctrine + TokenBundle, no hacks)
     bin/console
     config/
@@ -123,13 +142,16 @@ tests/
         doctrine.php           # SQLite in-memory + native lazy objects
       routes.php
   Unit/
+    Attribute/RequiresTokenTest.php
     Entity/TokenTest.php
+    Event/TokenAccessDeniedEventTest.php
   Integration/
     IntegrationTestCase.php    # Base class: boot kernel, wire TokenRepository directly, create schema, teardown
     Repository/TokenRepositoryTest.php
     Service/TokenManagerTest.php
   Functional/
     Command/PurgeTokensCommandTest.php
+    EventListener/RequiresTokenListenerTest.php
 ```
 
 **IMPORTANT**: This section should evolve with the project. When a new feature is created, updated or removed, this section should too.

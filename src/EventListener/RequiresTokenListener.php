@@ -58,26 +58,9 @@ final class RequiresTokenListener
 
     private function resolveTokenString(RequiresToken $attribute, Request $request): ?string
     {
-        if ($attribute->resolver !== null) {
-            /** @var TokenResolverInterface $resolver */
-            $resolver = $this->resolverLocator->get($attribute->resolver);
+        /** @var TokenResolverInterface $resolver */
+        $resolver = $this->resolverLocator->get($attribute->resolver);
 
-            return $resolver->resolve($request);
-        }
-
-        // Check Authorization: Bearer <token> header first
-        $authorization = $request->headers->get('Authorization');
-        if (\is_string($authorization) && str_starts_with($authorization, 'Bearer ')) {
-            return substr($authorization, 7);
-        }
-
-        $parameter = $attribute->parameter;
-
-        // Fallback to route parameters, then query string, then request body
-        $value = $request->attributes->get($parameter)
-            ?? $request->query->get($parameter)
-            ?? $request->request->get($parameter);
-
-        return \is_string($value) ? $value : null;
+        return $resolver->resolve($request);
     }
 }

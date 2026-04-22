@@ -6,6 +6,8 @@ namespace Ecourty\TokenBundle\Tests\App\Controller;
 
 use Ecourty\TokenBundle\Attribute\RequiresToken;
 use Ecourty\TokenBundle\Entity\Token;
+use Ecourty\TokenBundle\Resolver\QueryStringTokenResolver;
+use Ecourty\TokenBundle\Tests\App\Resolver\CustomHeaderTokenResolver;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -20,14 +22,14 @@ final class TokenTestController
         return new JsonResponse(['status' => 'ok', 'token_type' => $token->getType()]);
     }
 
-    #[RequiresToken(type: 'access', parameter: 'api_token')]
-    public function customParameterAction(Request $request): JsonResponse
+    #[RequiresToken(type: 'access', resolver: QueryStringTokenResolver::class)]
+    public function queryStringAction(Request $request): JsonResponse
     {
         return new JsonResponse(['status' => 'ok']);
     }
 
-    #[RequiresToken(type: 'access', resolver: \Ecourty\TokenBundle\Tests\App\Resolver\HeaderTokenResolver::class)]
-    public function resolverAction(Request $request): JsonResponse
+    #[RequiresToken(type: 'access', resolver: CustomHeaderTokenResolver::class)]
+    public function customResolverAction(Request $request): JsonResponse
     {
         return new JsonResponse(['status' => 'ok']);
     }

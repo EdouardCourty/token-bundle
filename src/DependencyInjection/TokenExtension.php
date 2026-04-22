@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Ecourty\TokenBundle\DependencyInjection;
 
+use Ecourty\TokenBundle\Contract\TokenResolverInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Extension\Extension;
@@ -22,6 +23,9 @@ final class TokenExtension extends Extension implements PrependExtensionInterfac
 
         \assert(\is_int($config['token_length']));
         $container->setParameter('token.token_length', $config['token_length']);
+
+        $container->registerForAutoconfiguration(TokenResolverInterface::class)
+            ->addTag('token.resolver');
 
         $loader = new PhpFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
         $loader->load('services.php');

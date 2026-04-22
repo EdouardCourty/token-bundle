@@ -7,6 +7,7 @@ namespace Ecourty\TokenBundle\EventListener;
 use Ecourty\TokenBundle\Event\TokenAccessDeniedEvent;
 use Ecourty\TokenBundle\Exception\TokenAccessDeniedException;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
+use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 
 #[AsEventListener]
@@ -17,7 +18,7 @@ final class TokenAccessDeniedListener
     ) {
     }
 
-    public function __invoke(\Symfony\Component\HttpKernel\Event\ExceptionEvent $event): void
+    public function __invoke(ExceptionEvent $event): void
     {
         $exception = $event->getThrowable();
 

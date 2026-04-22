@@ -46,12 +46,16 @@ final class RequiresTokenListenerTest extends WebTestCase
         $this->em->close();
     }
 
-    public function testProtectedRouteWithValidToken(): void
+    // --- Default resolver (HeaderTokenResolver — X-Token header) ---
+
+    public function testProtectedRouteWithXTokenHeader(): void
     {
         $user = $this->createUser();
         $token = $this->tokenManager->create('access', $user, '+1 hour', false);
 
-        $this->client->request('GET', '/protected?token=' . $token->getToken());
+        $this->client->request('GET', '/protected', server: [
+            'HTTP_X_TOKEN' => $token->getToken(),
+        ]);
 
         $response = $this->client->getResponse();
         $this->assertSame(200, $response->getStatusCode());
@@ -75,7 +79,9 @@ final class RequiresTokenListenerTest extends WebTestCase
         $this->client->catchExceptions(false);
 
         $this->expectException(\Ecourty\TokenBundle\Exception\TokenAccessDeniedException::class);
-        $this->client->request('GET', '/protected?token=invalid-token');
+        $this->client->request('GET', '/protected', server: [
+            'HTTP_X_TOKEN' => 'invalid-token',
+        ]);
     }
 
     public function testProtectedRouteWithExpiredToken(): void
@@ -86,7 +92,9 @@ final class RequiresTokenListenerTest extends WebTestCase
         $this->client->catchExceptions(false);
 
         $this->expectException(\Ecourty\TokenBundle\Exception\TokenAccessDeniedException::class);
-        $this->client->request('GET', '/protected?token=' . $token->getToken());
+        $this->client->request('GET', '/protected', server: [
+            'HTTP_X_TOKEN' => $token->getToken(),
+        ]);
     }
 
     public function testProtectedRouteWithRevokedToken(): void
@@ -98,48 +106,52 @@ final class RequiresTokenListenerTest extends WebTestCase
         $this->client->catchExceptions(false);
 
         $this->expectException(\Ecourty\TokenBundle\Exception\TokenAccessDeniedException::class);
-        $this->client->request('GET', '/protected?token=' . $token->getToken());
+        $this->client->request('GET', '/protected', server: [
+            'HTTP_X_TOKEN' => $token->getToken(),
+        ]);
     }
 
-    public function testCustomParameterName(): void
+    // --- QueryStringTokenResolver ---
+
+    public function testQueryStringResolverWithValidToken(): void
     {
         $user = $this->createUser();
         $token = $this->tokenManager->create('access', $user, '+1 hour', false);
 
-        $this->client->request('GET', '/custom-parameter?api_token=' . $token->getToken());
+        $this->client->request('GET', '/query-string?token=' . $token->getToken());
 
         $this->assertSame(200, $this->client->getResponse()->getStatusCode());
     }
 
-    public function testCustomParameterNameMissingParameter(): void
+    public function testQueryStringResolverWithoutToken(): void
     {
-        $user = $this->createUser();
-        $token = $this->tokenManager->create('access', $user, '+1 hour', false);
-
         $this->client->catchExceptions(false);
 
-        // Using "token" instead of "api_token" should fail
         $this->expectException(\Ecourty\TokenBundle\Exception\TokenAccessDeniedException::class);
-        $this->client->request('GET', '/custom-parameter?token=' . $token->getToken());
+        $this->client->request('GET', '/query-string');
     }
 
-    public function testResolverRoute(): void
+    // --- Custom resolver (X-Token header) ---
+
+    public function testCustomResolverRoute(): void
     {
         $user = $this->createUser();
         $token = $this->tokenManager->create('access', $user, '+1 hour', false);
 
-        $this->client->request('GET', '/resolver', server: ['HTTP_X_TOKEN' => $token->getToken()]);
+        $this->client->request('GET', '/custom-resolver', server: ['HTTP_X_API_KEY' => $token->getToken()]);
 
         $this->assertSame(200, $this->client->getResponse()->getStatusCode());
     }
 
-    public function testResolverRouteMissingHeader(): void
+    public function testCustomResolverRouteMissingHeader(): void
     {
         $this->client->catchExceptions(false);
 
         $this->expectException(\Ecourty\TokenBundle\Exception\TokenAccessDeniedException::class);
-        $this->client->request('GET', '/resolver');
+        $this->client->request('GET', '/custom-resolver');
     }
+
+    // --- Public route ---
 
     public function testPublicRouteNeedsNoToken(): void
     {
@@ -151,6 +163,8 @@ final class RequiresTokenListenerTest extends WebTestCase
         $data = json_decode((string) $this->client->getResponse()->getContent(), true);
         $this->assertSame('public', $data['status']);
     }
+
+    // --- Events ---
 
     public function testAccessDeniedEventIsDispatched(): void
     {
@@ -164,7 +178,7 @@ final class RequiresTokenListenerTest extends WebTestCase
         });
 
         $this->client->catchExceptions(true);
-        $this->client->request('GET', '/protected?token=invalid');
+        $this->client->request('GET', '/protected');
 
         $this->assertTrue($dispatched, 'TokenAccessDeniedEvent should have been dispatched');
     }
@@ -181,7 +195,7 @@ final class RequiresTokenListenerTest extends WebTestCase
             ));
         });
 
-        $this->client->request('GET', '/protected?token=invalid');
+        $this->client->request('GET', '/protected');
 
         $response = $this->client->getResponse();
         $this->assertSame(403, $response->getStatusCode());

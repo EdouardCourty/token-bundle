@@ -30,7 +30,7 @@ final class TokenManager
 
     private static function mask(string $tokenString): string
     {
-        $reveal = max(1, min(8, intdiv(strlen($tokenString), 4)));
+        $reveal = max(1, min(8, intdiv(\strlen($tokenString), 4)));
 
         return substr($tokenString, 0, $reveal) . '…';
     }

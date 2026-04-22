@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Ecourty\TokenBundle\Tests\Unit\Attribute;
 
 use Ecourty\TokenBundle\Attribute\RequiresToken;
+use Ecourty\TokenBundle\Resolver\HeaderTokenResolver;
+use Ecourty\TokenBundle\Resolver\QueryStringTokenResolver;
 use PHPUnit\Framework\TestCase;
 
 final class RequiresTokenTest extends TestCase
@@ -14,21 +16,18 @@ final class RequiresTokenTest extends TestCase
         $attribute = new RequiresToken(type: 'access');
 
         $this->assertSame('access', $attribute->type);
-        $this->assertSame('token', $attribute->parameter);
-        $this->assertNull($attribute->resolver);
+        $this->assertSame(HeaderTokenResolver::class, $attribute->resolver);
     }
 
-    public function testCustomValues(): void
+    public function testCustomResolver(): void
     {
         $attribute = new RequiresToken(
             type: 'share',
-            parameter: 'api_key',
-            resolver: self::class,
+            resolver: QueryStringTokenResolver::class,
         );
 
         $this->assertSame('share', $attribute->type);
-        $this->assertSame('api_key', $attribute->parameter);
-        $this->assertSame(self::class, $attribute->resolver);
+        $this->assertSame(QueryStringTokenResolver::class, $attribute->resolver);
     }
 
     public function testIsPhpAttribute(): void

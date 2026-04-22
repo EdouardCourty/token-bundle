@@ -162,7 +162,7 @@ final class TokenRepositoryTest extends IntegrationTestCase
         $this->em->flush();
         $this->createToken(expiresIn: '+1 hour');
 
-        $count = $this->repository->purgeExpiredAndConsumed();
+        $count = $this->repository->purgeStaleTokens();
 
         $this->assertSame(3, $count);
         $this->assertSame(1, $this->repository->count([]));
@@ -173,7 +173,7 @@ final class TokenRepositoryTest extends IntegrationTestCase
         $this->createToken(type: 'reset', expiresIn: '-1 second');
         $this->createToken(type: 'verify', expiresIn: '-1 second');
 
-        $count = $this->repository->purgeExpiredAndConsumed('reset');
+        $count = $this->repository->purgeStaleTokens('reset');
 
         $this->assertSame(1, $count);
     }
@@ -195,7 +195,96 @@ final class TokenRepositoryTest extends IntegrationTestCase
         $this->createToken(expiresIn: '-1 second');
         $this->createToken();
 
-        $count = $this->repository->countExpiredAndConsumed();
+        $count = $this->repository->countStaleTokens();
         $this->assertSame(2, $count);
+    }
+
+    public function testAtomicConsumeSingleUseSuccess(): void
+    {
+        $token = $this->createToken(singleUse: true);
+
+        $result = $this->repository->atomicConsumeSingleUse($token);
+
+        $this->assertTrue($result);
+        $this->em->refresh($token);
+        $this->assertNotNull($token->getConsumedAt());
+        $this->assertSame(1, $token->getUseCount());
+    }
+
+    public function testAtomicConsumeSingleUseReturnsFalseWhenAlreadyConsumed(): void
+    {
+        $token = $this->createToken(singleUse: true);
+        $token->markConsumed();
+        $this->em->flush();
+
+        $result = $this->repository->atomicConsumeSingleUse($token);
+
+        $this->assertFalse($result);
+    }
+
+    public function testAtomicConsumeSingleUseReturnsFalseWhenExpired(): void
+    {
+        $token = $this->createToken(singleUse: true, expiresIn: '-1 second');
+
+        $result = $this->repository->atomicConsumeSingleUse($token);
+
+        $this->assertFalse($result);
+    }
+
+    public function testAtomicConsumeSingleUseReturnsFalseWhenRevoked(): void
+    {
+        $token = $this->createToken(singleUse: true);
+        $token->markRevoked();
+        $this->em->flush();
+
+        $result = $this->repository->atomicConsumeSingleUse($token);
+
+        $this->assertFalse($result);
+    }
+
+    public function testAtomicIncrementReturnsFalseWhenRevoked(): void
+    {
+        $token = $this->createToken(maxUses: 3);
+        $token->markRevoked();
+        $this->em->flush();
+
+        $result = $this->repository->atomicIncrementUseCount($token);
+
+        $this->assertFalse($result);
+    }
+
+    public function testAtomicIncrementReturnsFalseWhenExpired(): void
+    {
+        $token = $this->createToken(maxUses: 3, expiresIn: '-1 second');
+
+        $result = $this->repository->atomicIncrementUseCount($token);
+
+        $this->assertFalse($result);
+    }
+
+    public function testAtomicIncrementReturnsFalseWhenConsumed(): void
+    {
+        $token = $this->createToken(maxUses: 3);
+        $token->markConsumed();
+        $this->em->flush();
+
+        $result = $this->repository->atomicIncrementUseCount($token);
+
+        $this->assertFalse($result);
+    }
+
+    public function testAtomicIncrementSetsConsumedAtWhenMaxUsesReached(): void
+    {
+        $token = $this->createToken(maxUses: 2);
+
+        $this->repository->atomicIncrementUseCount($token);
+        $this->em->refresh($token);
+        $this->assertNull($token->getConsumedAt());
+        $this->assertSame(1, $token->getUseCount());
+
+        $this->repository->atomicIncrementUseCount($token);
+        $this->em->refresh($token);
+        $this->assertNotNull($token->getConsumedAt());
+        $this->assertSame(2, $token->getUseCount());
     }
 }

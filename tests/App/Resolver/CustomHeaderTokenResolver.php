@@ -7,11 +7,11 @@ namespace Ecourty\TokenBundle\Tests\App\Resolver;
 use Ecourty\TokenBundle\Contract\TokenResolverInterface;
 use Symfony\Component\HttpFoundation\Request;
 
-final class HeaderTokenResolver implements TokenResolverInterface
+final class CustomHeaderTokenResolver implements TokenResolverInterface
 {
     public function resolve(Request $request): ?string
     {
-        $header = $request->headers->get('X-Token');
+        $header = $request->headers->get('X-Api-Key');
 
         return \is_string($header) ? $header : null;
     }
