@@ -9,6 +9,7 @@ use Ecourty\TokenBundle\Event\TokenCreatedEvent;
 use Ecourty\TokenBundle\Event\TokenRevokedEvent;
 use Ecourty\TokenBundle\Exception\TokenAlreadyConsumedException;
 use Ecourty\TokenBundle\Exception\TokenExpiredException;
+use Ecourty\TokenBundle\Exception\TokenMaxUsesReachedException;
 use Ecourty\TokenBundle\Exception\TokenNotFoundException;
 use Ecourty\TokenBundle\Exception\TokenRevokedException;
 use Ecourty\TokenBundle\Service\TokenManager;
@@ -106,7 +107,7 @@ final class TokenManagerTest extends IntegrationTestCase
         $this->assertTrue($token->isConsumed());
         $this->assertFalse($token->isRevoked());
 
-        $this->expectException(TokenAlreadyConsumedException::class);
+        $this->expectException(TokenMaxUsesReachedException::class);
         $this->manager->consume($tokenString, 'share');
     }
 

@@ -3,7 +3,7 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="tests/bootstrap.php"
          colors="true"
-         failOnRisky="false"
+         failOnRisky="true"
          failOnWarning="true">
     <php>
         <ini name="error_reporting" value="-1"/>

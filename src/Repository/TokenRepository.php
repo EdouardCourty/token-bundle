@@ -46,6 +46,7 @@ class TokenRepository extends ServiceEntityRepository
             ->setParameter('subjectId', $subject->getTokenSubjectId())
             ->setParameter('type', $type)
             ->setParameter('now', $now)
+            ->orderBy('t.createdAt', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();

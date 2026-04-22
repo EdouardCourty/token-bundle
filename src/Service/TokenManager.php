@@ -118,12 +118,12 @@ final class TokenManager
             throw new TokenExpiredException(\sprintf('Token "%s" has expired.', $masked));
         }
 
-        if ($token->isConsumed()) {
-            throw new TokenAlreadyConsumedException(\sprintf('Token "%s" has already been consumed.', $masked));
-        }
-
         if ($token->isMaxUsesReached()) {
             throw new TokenMaxUsesReachedException(\sprintf('Token "%s" has reached its maximum number of uses.', $masked));
+        }
+
+        if ($token->isConsumed()) {
+            throw new TokenAlreadyConsumedException(\sprintf('Token "%s" has already been consumed.', $masked));
         }
     }
 
@@ -160,7 +160,7 @@ final class TokenManager
             if (!$incremented) {
                 $this->em->refresh($token);
                 $this->validateToken($token);
-                throw new TokenRevokedException(\sprintf('Token "%s" could not be consumed.', self::mask($tokenString)));
+                throw new \LogicException(\sprintf('Token "%s" could not be incremented despite passing validation; the DB state may be inconsistent.', self::mask($tokenString)));
             }
         }
 

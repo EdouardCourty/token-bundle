@@ -37,10 +37,18 @@ final class RequiresTokenListener
 
         $attribute = $attributes[0];
         $request = $event->getRequest();
-        $tokenString = $this->resolveTokenString($attribute, $request);
+        $request->attributes->set('_token_type', $attribute->type);
+
+        try {
+            $tokenString = $this->resolveTokenString($attribute, $request);
+        } catch (\Throwable $e) {
+            throw new TokenAccessDeniedException(
+                \sprintf('Token resolver "%s" is not available.', $attribute->resolver),
+                $e,
+            );
+        }
 
         if ($tokenString === null) {
-            $request->attributes->set('_token_type', $attribute->type);
             throw new TokenAccessDeniedException(
                 'No token provided.',
                 new TokenNotFoundException('No token provided.'),
@@ -51,7 +59,6 @@ final class RequiresTokenListener
             $token = $this->tokenManager->get($tokenString, $attribute->type);
             $request->attributes->set('_token', $token);
         } catch (AbstractTokenException $e) {
-            $request->attributes->set('_token_type', $attribute->type);
             throw new TokenAccessDeniedException($e->getMessage(), $e);
         }
     }

@@ -37,5 +37,9 @@ abstract class IntegrationTestCase extends KernelTestCase
     {
         parent::tearDown();
         $this->em->close();
+
+        // Symfony's ErrorHandler installs an exception handler during kernel boot.
+        // PHPUnit 12 detects unrestored handlers and marks tests as risky.
+        restore_exception_handler();
     }
 }
