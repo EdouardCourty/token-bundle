@@ -6,7 +6,6 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 
 return static function (ContainerConfigurator $container): void {
     $ormConfig = [
-        'auto_generate_proxy_classes' => true,
         'naming_strategy' => 'doctrine.orm.naming_strategy.underscore_number_aware',
         'mappings' => [
             'TestApp' => [
