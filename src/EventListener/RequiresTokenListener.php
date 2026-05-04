@@ -11,7 +11,7 @@ use Ecourty\TokenBundle\Exception\TokenAccessDeniedException;
 use Ecourty\TokenBundle\Exception\TokenNotFoundException;
 use Ecourty\TokenBundle\Service\TokenManager;
 use Psr\Container\ContainerInterface;
-use Symfony\Component\DependencyInjection\Attribute\TaggedLocator;
+use Symfony\Component\DependencyInjection\Attribute\AutowireLocator;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpKernel\Event\ControllerArgumentsEvent;
@@ -21,7 +21,7 @@ final class RequiresTokenListener
 {
     public function __construct(
         private readonly TokenManager $tokenManager,
-        #[TaggedLocator('token.resolver')]
+        #[AutowireLocator('token.resolver')]
         private readonly ContainerInterface $resolverLocator,
     ) {
     }
