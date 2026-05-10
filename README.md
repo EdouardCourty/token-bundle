@@ -1,6 +1,6 @@
 # Token Bundle
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![CI](https://github.com/EdouardCourty/token-bundle/actions/workflows/ci.yml/badge.svg)](https://github.com/EdouardCourty/token-bundle/actions/workflows/ci.yml)
 
 A Symfony bundle for managing secure, typed, and revocable tokens attached to any entity — for password resets, email verification, share links, and more.
 
