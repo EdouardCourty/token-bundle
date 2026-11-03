@@ -12,6 +12,7 @@ return $config
     ->setFinder($finder)
     ->setUsingCache(false)
     ->setRiskyAllowed(true)
+    ->setUnsupportedPhpVersionAllowed(true)
     ->setRules([
         '@PSR12' => true,
         '@Symfony' => true,
@@ -29,6 +30,6 @@ return $config
         'visibility_required' => true,
         'native_function_invocation' => true,
         'native_constant_invocation' => true,
-        'mb_str_functions' => false, // Disabled: we handle binary data (sodium keys) that requires strlen() not mb_strlen()
+        'mb_str_functions' => false,
         'modernize_strpos' => true,
     ]);
