@@ -1,8 +1,8 @@
 parameters:
-	level: max
-	paths:
-		- src
-		- tests
-	excludePaths:
-		analyseAndScan:
-			- tests/App/var (?)
+    level: max
+    paths:
+        - src
+        - tests
+    excludePaths:
+        analyseAndScan:
+            - tests/App/var
