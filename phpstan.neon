@@ -5,4 +5,4 @@ parameters:
         - tests
     excludePaths:
         analyseAndScan:
-            - tests/App/var
+            - tests/App/var (?)
