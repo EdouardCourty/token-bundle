@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Symfony\Component\DependencyInjection\Loader\Configurator;
 
+use Doctrine\ORM\Events;
 use Ecourty\TokenBundle\Command\PurgeTokensCommand;
+use Ecourty\TokenBundle\Doctrine\TokenTableNameListener;
 use Ecourty\TokenBundle\EventListener\RequiresTokenListener;
 use Ecourty\TokenBundle\EventListener\TokenAccessDeniedListener;
 use Ecourty\TokenBundle\Repository\TokenRepository;
@@ -21,6 +23,10 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(TokenRepository::class)
         ->tag('doctrine.repository_service');
+
+    $services->set(TokenTableNameListener::class)
+        ->arg('$tableName', '%token.table_name%')
+        ->tag('doctrine.event_listener', ['event' => Events::loadClassMetadata]);
 
     $services->set(TokenManager::class)
         ->arg('$tokenLength', '%token.token_length%');
