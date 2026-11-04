@@ -24,6 +24,9 @@ final class TokenExtension extends Extension implements PrependExtensionInterfac
         \assert(\is_int($config['token_length']));
         $container->setParameter('token.token_length', $config['token_length']);
 
+        \assert(\is_string($config['table_name']));
+        $container->setParameter('token.table_name', $config['table_name']);
+
         $container->registerForAutoconfiguration(TokenResolverInterface::class)
             ->addTag('token.resolver');
 

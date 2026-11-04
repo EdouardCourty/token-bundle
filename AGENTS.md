@@ -58,10 +58,13 @@ The bundle stores tokens in a single Doctrine-managed table. A `TokenManager` se
 
 - **Console Command** — `php bin/console token:purge` — deletes expired and consumed tokens. Options: `--dry-run`, `--type=<type>`, `--before=<date>` (date cutoff for expired tokens, e.g. `-30 days`).
 
+- **`TokenTableNameListener`** — Doctrine `loadClassMetadata` listener applying the `table_name` config to the `Token` entity (the `#[ORM\Table]` attribute holds the default `tokens`).
+
 - **Bundle configuration** (`config/packages/token.yaml`):
   ```yaml
   token:
     token_length: 64  # min: 16
+    table_name: tokens  # default: tokens, overrides the Token entity table name
   ```
 
 ---
@@ -118,8 +121,10 @@ src/
     TokenAccessDeniedListener.php # kernel.exception — dispatches TokenAccessDeniedEvent, allows response override
   Command/
     PurgeTokensCommand.php     # token:purge (--dry-run, --type)
+  Doctrine/
+    TokenTableNameListener.php # loadClassMetadata listener: applies configured table name
   DependencyInjection/
-    Configuration.php          # token_length config node
+    Configuration.php          # token_length + table_name config nodes
     TokenExtension.php         # PrependExtensionInterface for Doctrine mapping + autoconfigure TokenResolverInterface
   Resources/
     config/
@@ -134,6 +139,7 @@ tests/
     Controller/TokenTestController.php # Test controller with #[RequiresToken] routes
     Resolver/HeaderTokenResolver.php   # Test TokenResolverInterface implementation
     TestKernel.php             # Minimal test kernel (Framework + Doctrine + TokenBundle, no hacks)
+    CustomTableNameKernel.php  # TestKernel variant with token.table_name = custom_tokens
     bin/console
     config/
       services.php             # DI defaults only (no compiler pass, no public overrides)
@@ -145,12 +151,15 @@ tests/
     Attribute/RequiresTokenTest.php
     Entity/TokenTest.php
     Event/TokenAccessDeniedEventTest.php
+    DependencyInjection/ConfigurationTest.php
+    Doctrine/TokenTableNameListenerTest.php
   Integration/
     IntegrationTestCase.php    # Base class: boot kernel, wire TokenRepository directly, create schema, teardown
     Repository/TokenRepositoryTest.php
     Service/TokenManagerTest.php
   Functional/
     Command/PurgeTokensCommandTest.php
+    Doctrine/CustomTableNameTest.php
     EventListener/RequiresTokenListenerTest.php
 ```
 

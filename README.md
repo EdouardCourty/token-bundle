@@ -80,12 +80,16 @@ php bin/console doctrine:migrations:migrate
 ```yaml
 # config/packages/token.yaml
 token:
-    token_length: 64  # default: 64, minimum: 16
+    token_length: 64      # default: 64, minimum: 16
+    table_name: tokens    # default: tokens
 ```
 
-| Option         | Type  | Default | Description                                     |
-|----------------|-------|---------|-------------------------------------------------|
-| `token_length` | `int` | `64`    | Length of the generated token string (min: `16`) |
+| Option         | Type     | Default  | Description                                                                 |
+|----------------|----------|----------|-----------------------------------------------------------------------------|
+| `token_length` | `int`    | `64`     | Length of the generated token string (min: `16`)                            |
+| `table_name`   | `string` | `tokens` | Name of the database table storing tokens (letters, digits and underscores) |
+
+> Changing `table_name` on an existing project requires a new migration (`doctrine:migrations:diff`) to rename the table.
 
 ---
 
